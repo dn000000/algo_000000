@@ -1,0 +1,108 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v2
+    
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.8'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        pip install pytest pytest-cov
+    
+    - name: Run all tests
+      run: |
+        pytest
+    
+    - name: Test Equalizer algorithm
+      run: |
+        pytest tests/test_equalizer.py -v
+    
+    - name: Test Rose curve algorithm
+      run: |
+        pytest tests/test_rose.py -v
+    
+    - name: Generate coverage report
+      run: |
+        pytest --cov=src --cov-report=xml --cov-report=term
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v1
+      with:
+        file: ./coverage.xml
+        fail_ci_if_error: true
+
+  examples:
+    runs-on: ubuntu-latest
+    needs: test
+    
+    steps:
+    - uses: actions/checkout@v2
+    
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.8'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+    
+    - name: Run Equalizer examples
+      run: |
+        python src/main.py -i examples/example1.txt
+        python src/main.py -i examples/example2.txt
+        python src/main.py -i examples/example3.txt
+    
+    - name: Run Rose curve examples
+      run: |
+        python src/rose_cli.py --n 3 --a 1 --r 1 --theta 0 --no-visual
+        python src/rose_cli.py --n 5 --a 2 --r 2 --theta 0 --no-visual
+
+  docs:
+    runs-on: ubuntu-latest
+    needs: test
+    
+    steps:
+    - uses: actions/checkout@v2
+    
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.8'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+    
+    - name: Install Doxygen
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y doxygen graphviz
+    
+    - name: Generate documentation
+      run: |
+        doxygen Doxyfile
+    
+    - name: Deploy documentation
+      if: github.event_name == 'push'
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./docs/html 
